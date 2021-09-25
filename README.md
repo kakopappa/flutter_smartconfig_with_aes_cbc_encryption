@@ -4,5 +4,4 @@ Arduino ESP8266 is based on NonOS SDK so ESPTOUCH v2 AES encryption is not avaia
 So I made this project demonstrate how to encrypt the WiFi password and transmit it to 
 ESP8266 and decrypt it and connect to WiFi network.
 
-
-
+![screenshot](https://github.com/kakopappa/flutter_smartconfig_with_aes_cbc_encryption/blob/main/flutter_01.png)
