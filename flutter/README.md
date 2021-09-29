@@ -1,11 +1,16 @@
-# Esp8266 smartconfig (onetouch) flutter example
+# esptouchflutterexample
 
-This example demostrate how to use SmartConfig for ESP8266/ESP32 modules using a Flutter (dart) app
+A new Flutter project.
 
-Arduino code for SmartConfig is in WiFiSmartConifg folder.
+## Getting Started
 
-NOTE: Support only Android for now. Made for upcomig Sinric app.
+This project is a starting point for a Flutter application.
 
-Based on ESP Touch v0.3.7.0 https://github.com/EspressifApp/EsptouchForAndroid
+A few resources to get you started if this is your first Flutter project:
 
-![How it looks like](https://github.com/kakopappa/esp8266_smartconfig_flutter_example/blob/master/flutter_01.png)
+- [Lab: Write your first Flutter app](https://flutter.dev/docs/get-started/codelab)
+- [Cookbook: Useful Flutter samples](https://flutter.dev/docs/cookbook)
+
+For help getting started with Flutter, view our
+[online documentation](https://flutter.dev/docs), which offers tutorials,
+samples, guidance on mobile development, and a full API reference.

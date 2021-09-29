@@ -1,5 +1,4 @@
 import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
@@ -9,10 +8,10 @@ import 'package:device_info/device_info.dart';
 import 'package:pointycastle/block/aes_fast.dart';
 import 'package:pointycastle/block/modes/cbc.dart';
 import 'package:pointycastle/padded_block_cipher/padded_block_cipher_impl.dart';
-
-import 'package:simple_permissions/simple_permissions.dart';
 import 'package:pointycastle/pointycastle.dart';
 import 'package:pointycastle/paddings/pkcs7.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:convert' show utf8;
 
 
 void main() => runApp(MyApp());
@@ -32,7 +31,7 @@ class MyApp extends StatelessWidget {
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
+  MyHomePage({Key? key, required this.title}) : super(key: key);
 
   final String title;
 
@@ -90,7 +89,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   String aesCbcEncrypt(String text) {
-    return base64Encode(encryptList(utf8.encode(text)));
+     return base64Encode(encryptList(new Uint8List.fromList(text.codeUnits)));
   }
 
   Uint8List encryptList(Uint8List data) {
@@ -105,16 +104,10 @@ class _MyHomePageState extends State<MyHomePage> {
     final PaddedBlockCipherImpl paddedCipher =
     new PaddedBlockCipherImpl(new PKCS7Padding(), cbcCipher);
     paddedCipher.init(true, paddingParams);
-
-    try {
-      return paddedCipher.process(data);
-    } catch (e) {
-      print(e);
-      return null;
-    }
+    return paddedCipher.process(data);
   }
 
-   Future<void> _configureEsp() async {
+  Future<void> _configureEsp() async {
     String output = "";
 
     setState(() {
@@ -122,33 +115,33 @@ class _MyHomePageState extends State<MyHomePage> {
     });
 
     try {
-        
-        // Change if required.
-        const String deviceCount = "1"; //  the expect result count
-        const String broadcast = "1"; // broadcast or multicast
-        const Duration _kLongTimeout = const Duration(seconds: 120);
 
-        final passwordEncoded  = aesCbcEncrypt(_password);
+      // Change if required.
+      const String deviceCount = "1"; //  the expect result count
+      const String broadcast = "1"; // broadcast or multicast
+      const Duration _kLongTimeout = const Duration(seconds: 120);
 
-        final String result = await platform.invokeMethod('startSmartConfig', <String, dynamic>{
-          'ssid': _ssid,
-          'bssid': _bssid,
-          'pass': passwordEncoded,
-          'deviceCount': deviceCount,
-          'broadcast': broadcast,
-        }).timeout(_kLongTimeout);
+      final passwordEncoded  = aesCbcEncrypt(_password);
 
-        final parsed = json.decode(result);
-        final devices = parsed["devices"];
+      final String result = await platform.invokeMethod('startSmartConfig', <String, dynamic>{
+        'ssid': _ssid,
+        'bssid': _bssid,
+        'pass': passwordEncoded,
+        'deviceCount': deviceCount,
+        'broadcast': broadcast,
+      }).timeout(_kLongTimeout);
 
-        output = "Following devices configured: \n\n";
+      final parsed = json.decode(result);
+      final devices = parsed["devices"];
 
-        for (var device in devices) {
-             output += "bssid: ${device["bssid"]} ip: ${device["ip"]} \n";
-        }
-        
-        _msg = output;
-      
+      output = "Following devices configured: \n\n";
+
+      for (var device in devices) {
+        output += "bssid: ${device["bssid"]} ip: ${device["ip"]} \n";
+      }
+
+      _msg = output;
+
     } on PlatformException catch (e) {
       output = "Failed to configure: '${e.message}'.";
     }
@@ -160,7 +153,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   }
 
-  
+
 
   Future<void> _getConnectedWiFiInfo() async {
     String ssid = "";
@@ -170,19 +163,15 @@ class _MyHomePageState extends State<MyHomePage> {
     if (Platform.isIOS) {
       print('is a IOS');
     } else if (Platform.isAndroid) {
-      // Note Build.VERSION.SDK_INT >= 28 needs Manifest.permission.ACCESS_COARSE_LOCATION  
-      AndroidDeviceInfo build = await deviceInfoPlugin.androidInfo;
-      if (build.version.sdkInt >= 28) {
-        Permission permission = Permission.AccessCoarseLocation;
-        final res = await SimplePermissions.checkPermission(permission);
+      // Note Build.VERSION.SDK_INT >= 28 needs Manifest.permission.ACCESS_COARSE_LOCATION
+      Permission permission = Permission.locationWhenInUse;
+      final PermissionStatus res = await permission.request();
 
-        if(res == false) {
-            final res = await SimplePermissions.requestPermission(permission);
-            print("permission request result is " + res.toString());
-        } 
-      }    
+      if(res == PermissionStatus.denied) {
+        print("permission request denied!");
+      }
     }
-    
+
     try {
       String wiFiInfo  = await platform.invokeMethod('getConnectedWiFiInfo');
       final parsed = json.decode(wiFiInfo);
@@ -196,7 +185,7 @@ class _MyHomePageState extends State<MyHomePage> {
       }
 
     } catch (e) {
-      msg = "Failed to get connected WiFi name: '${e.message}'.";
+      msg = "Failed to get connected WiFi name: '${e}'.";
     }
 
     setState(() {
@@ -207,80 +196,80 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
-   
+
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
-      ),
-      body: Center(
-        child: _isLoading ? Container(
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.lightBlue),
+        appBar: AppBar(
+          title: Text(widget.title),
+        ),
+        body: Center(
+            child: _isLoading ? Container(
+              child: Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.lightBlue),
+                ),
+              ),
+              color: Colors.white.withOpacity(0.8),
+            ) :
+
+            new Container(
+                padding: new EdgeInsets.all(10.0),
+                child: new Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+
+                    new Container(height: 10),
+
+                    new Container(
+                        child:  Column(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children: <Widget>[
+                              Text("ESP Touch"),
+                              new TextField(
+                                controller: _ssidFilter,
+                                decoration: new InputDecoration(
+                                    labelText: 'ssid'
+                                ),
+                              ),
+                              new TextField(
+                                controller: _bssidFilter,
+                                decoration: new InputDecoration(
+                                    labelText: 'bssid'
+                                ),
+                              ),
+                              RaisedButton(
+                                child: Text('Get Connected WiFi details'),
+                                onPressed: _getConnectedWiFiInfo,
+                              )
+                            ])),
+
+                    new Container(
+                      child: new TextField(
+                        controller: _passwordFilter,
+                        decoration: new InputDecoration(
+                            labelText: 'Password'
                         ),
                       ),
-                      color: Colors.white.withOpacity(0.8),
-                    ) : 
-          
-          new Container(
-            padding: new EdgeInsets.all(10.0),
-            child: new Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-             
-            new Container(height: 10),
+                    ),
 
-            new Container(
-              child:  Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: <Widget>[
-                Text("ESP Touch v0.3.7.0"),
-                new TextField(
-                  controller: _ssidFilter,
-                  decoration: new InputDecoration(
-                    labelText: 'ssid'
-                  ),
-                ),
-                new TextField(
-                  controller: _bssidFilter,
-                  decoration: new InputDecoration(
-                    labelText: 'bssid'
-                  ),
-                ),
-                RaisedButton(
-                child: Text('Get Connected WiFi details'),
-                onPressed: _getConnectedWiFiInfo,            
-              )
-              ])),
-            
-            new Container(
-              child: new TextField(
-                controller: _passwordFilter,
-                decoration: new InputDecoration(
-                  labelText: 'Password'
-                ),              
-              ),
-            ),
+                    new RaisedButton(
+                      child: new Text('Configure ESP'),
+                      onPressed: _configureEsp,
+                    ),
 
-            new RaisedButton(
-                child: new Text('Configure ESP'),
-                onPressed: _configureEsp,
-              ),
+                    new Container(height: 10),
 
-            new Container(height: 10),
+                    Text(_msg),
 
-            Text(_msg),           
- 
-          ],
-        )
-            
-          )
+                  ],
+                )
 
-           
-      )       // This trailing comma makes auto-formatting nicer for build methods.
+            )
+
+
+        )       // This trailing comma makes auto-formatting nicer for build methods.
     );
   }
-} 
+}

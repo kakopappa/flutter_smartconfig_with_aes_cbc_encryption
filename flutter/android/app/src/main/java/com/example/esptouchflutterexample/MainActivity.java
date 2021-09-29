@@ -1,5 +1,7 @@
 package com.example.esptouchflutterexample;
 
+import io.flutter.embedding.android.FlutterActivity;
+
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
@@ -7,8 +9,6 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.Build;
-import android.os.Bundle;
-import io.flutter.app.FlutterActivity;
 import io.flutter.plugins.GeneratedPluginRegistrant;
 import android.content.ContextWrapper;
 import android.content.Intent;
@@ -17,6 +17,8 @@ import android.os.BatteryManager;
 import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
 import android.util.Log;
+
+import androidx.annotation.NonNull;
 
 import com.espressif.iot.esptouch.EsptouchTask;
 import com.espressif.iot.esptouch.IEsptouchResult;
@@ -34,102 +36,103 @@ import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
+import io.flutter.embedding.android.FlutterActivity;
+import io.flutter.embedding.engine.FlutterEngine;
 
 public class MainActivity extends FlutterActivity {
-  private static final String CHANNEL = "samples.flutter.io/esptouch";
-  private static final String TAG = "MainActivity";
+    private static final String CHANNEL = "samples.flutter.io/esptouch";
+    private static final String TAG = "MainActivity";
 
-  private IEsptouchTask mEsptouchTask;
+    private IEsptouchTask mEsptouchTask;
 
-  @Override
-  protected void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
-    GeneratedPluginRegistrant.registerWith(this);
+    @Override
+    public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
+        GeneratedPluginRegistrant.registerWith(flutterEngine);
 
-    new MethodChannel(getFlutterView(), CHANNEL).setMethodCallHandler(
-        new MethodCallHandler() {
-            @Override
-            public void onMethodCall(MethodCall call, Result result) {
-                if (call.method.equals("startSmartConfig")) {
-                    String ssid = call.argument("ssid");
-                    String bssid = call.argument("bssid");
-                    String pass = call.argument("pass");
-                    String deviceCount = call.argument("deviceCount");
-                    String broadcast = call.argument("broadcast");
+        new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL)
+                .setMethodCallHandler(
+                        (call, result) -> {
+                            if (call.method.equals("startSmartConfig")) {
+                                String ssid = call.argument("ssid");
+                                String bssid = call.argument("bssid");
+                                String pass = call.argument("pass");
+                                String deviceCount = call.argument("deviceCount");
+                                String broadcast = call.argument("broadcast");
 
-                    startSmartConfig(ssid, bssid, pass, deviceCount, broadcast, result);
-                }
-                else if (call.method.equals("stopSmartConfig")) {
-                     stopSmartConfig();
-                }
-                else if (call.method.equals("getConnectedWiFiInfo")) {
-                    getWifiInfo(result);
-                }
-                else if (call.method.equals("getBatteryLevel")) {
-                    int batteryLevel = getBatteryLevel();
+                                startSmartConfig(ssid, bssid, pass, deviceCount, broadcast, result);
+                            }
+                            else if (call.method.equals("stopSmartConfig")) {
+                                stopSmartConfig();
+                            }
+                            else if (call.method.equals("getConnectedWiFiInfo")) {
+                                getWifiInfo(result);
+                            }
+                            else if (call.method.equals("getBatteryLevel")) {
+                                int batteryLevel = getBatteryLevel();
 
-                    if (batteryLevel != -1) {
-                        result.success(batteryLevel);
+                                if (batteryLevel != -1) {
+                                    result.success(batteryLevel);
+                                } else {
+                                    result.error("UNAVAILABLE", "Battery level not available.", null);
+                                }
+                            } else {
+                                result.notImplemented();
+                            }
+                        });
+    }
+
+
+    private void getWifiInfo(Result result) {
+        final ConnectivityManager connManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        final NetworkInfo networkInfo = connManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+
+        if (networkInfo != null && networkInfo.isConnected()) {
+            final WifiManager wifiManager = (WifiManager)getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            final WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+
+            if(wifiInfo != null) {
+                final String ssid = wifiInfo.getSSID().replaceAll("^\"|\"$", "");
+                final String bssid = wifiInfo.getBSSID();
+                String is5G = "unknow";
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    int frequency = wifiInfo.getFrequency();
+                    if (frequency > 4900 && frequency < 5900) {
+                        // Connected 5G wifi. Device does not support 5G
+                        is5G = "yes";
                     } else {
-                        result.error("UNAVAILABLE", "Battery level not available.", null);
+                        is5G = "no";
                     }
-                } else {
-                    result.notImplemented();
                 }
-            }});
-  }
 
-  private void getWifiInfo(Result result) {
-      final ConnectivityManager connManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-      final NetworkInfo networkInfo = connManager.getNetworkInfo(ConnectivityManager.TYPE_WIFI);
+                JSONObject re = new JSONObject();
+                try {
+                    re.put("ssid", ssid);
+                    re.put("bssid", bssid);
+                    re.put("is5G", is5G);
+                } catch (JSONException ex) {
+                    result.error("getWifiInfo", ex.getMessage(), null);
+                    return;
+                }
 
-      if (networkInfo != null && networkInfo.isConnected()) {
-          final WifiManager wifiManager = (WifiManager)getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-          final WifiInfo wifiInfo = wifiManager.getConnectionInfo();
-
-          if(wifiInfo != null) {
-              final String ssid = wifiInfo.getSSID().replaceAll("^\"|\"$", "");
-              final String bssid = wifiInfo.getBSSID();
-              String is5G = "unknow";
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                  int frequency = wifiInfo.getFrequency();
-                  if (frequency > 4900 && frequency < 5900) {
-                      // Connected 5G wifi. Device does not support 5G
-                      is5G = "yes";
-                  } else {
-                      is5G = "no";
-                  }
+                result.success(re.toString());
+            } else {
+                result.error("getWifiInfo", "Unable to obtain WiFi details", null);
             }
-
-            JSONObject re = new JSONObject();
-            try {
-                re.put("ssid", ssid);
-                re.put("bssid", bssid);
-                re.put("is5G", is5G);
-            } catch (JSONException ex) {
-                result.error("getWifiInfo", ex.getMessage(), null);
-                return;
-            }
-
-            result.success(re.toString());
-          } else {
-              result.error("getWifiInfo", "Unable to obtain WiFi details", null);
-          }
-      } else {
-          result.error("getWifiInfo", "Not connected to WiFi", null);
-      }
-  }
+        } else {
+            result.error("getWifiInfo", "Not connected to WiFi", null);
+        }
+    }
 
 
-  public void stopSmartConfig() {
+    public void stopSmartConfig() {
         if (mEsptouchTask != null) {
             mEsptouchTask.interrupt();
         }
     }
 
     private void startSmartConfig(String ssid, String bssid, String pass, String deviceCount, String broadcast,  final Result resultResp) {
-      stopSmartConfig();
+        stopSmartConfig();
 
         /*Log.d(TAG, "ssid " + ssid);
         Log.d(TAG, "bssid " + bssid);
@@ -144,73 +147,71 @@ public class MainActivity extends FlutterActivity {
         byte[] deviceCountData = deviceCount.getBytes();
         byte[] broadcastData = broadcast.getBytes();
 
-      new EsptouchAsyncTask4(new TaskListener() {
-          @Override
-          public void onFinished(List<IEsptouchResult> result) {
-              // Do Something after the task has finished
+        new EsptouchAsyncTask4(new TaskListener() {
+            @Override
+            public void onFinished(List<IEsptouchResult> result) {
+                // Do Something after the task has finished
 
-              
+                try {
+                    IEsptouchResult firstResult = result.get(0);
 
-              try {
-                IEsptouchResult firstResult = result.get(0);
+                    if (!firstResult.isCancelled()) {
+                        if (firstResult.isSuc()) {
+                            StringBuilder sb = new StringBuilder();
+                            JSONArray jsonArray = new JSONArray();
 
-                if (!firstResult.isCancelled()) {
-                    if (firstResult.isSuc()) {
-                        StringBuilder sb = new StringBuilder();
-                        JSONArray jsonArray = new JSONArray();
+                            for (IEsptouchResult resultInList : result) {
+                                if(!resultInList.isCancelled() &&resultInList.getBssid() != null) {
 
-                        for (IEsptouchResult resultInList : result) {
-                            if(!resultInList.isCancelled() &&resultInList.getBssid() != null) {
-                                
-                                sb.append("Esptouch success, bssid = ")
-                                .append(resultInList.getBssid())
-                                .append(", InetAddress = ")
-                                .append(resultInList.getInetAddress().getHostAddress())
-                                .append("\n");
+                                    sb.append("Esptouch success, bssid = ")
+                                            .append(resultInList.getBssid())
+                                            .append(", InetAddress = ")
+                                            .append(resultInList.getInetAddress().getHostAddress())
+                                            .append("\n");
 
-                                JSONObject re = new JSONObject();
-                                re.put("bssid", resultInList.getBssid());
-                                re.put("ip", resultInList.getInetAddress().getHostAddress());
-                                jsonArray.put(re);
+                                    JSONObject re = new JSONObject();
+                                    re.put("bssid", resultInList.getBssid());
+                                    re.put("ip", resultInList.getInetAddress().getHostAddress());
+                                    jsonArray.put(re);
+                                }
                             }
+
+                            Log.d(TAG, sb.toString());
+
+                            JSONObject configureDeviceObj = new JSONObject();
+                            configureDeviceObj.put("devices", jsonArray);
+                            resultResp.success(configureDeviceObj.toString());
+
+                        }  else {
+                            resultResp.error("startSmartConfig", "Esptouch fail", null);
                         }
-
-                        Log.d(TAG, sb.toString());      
-                        
-                        JSONObject configureDeviceObj = new JSONObject();
-                        configureDeviceObj.put("devices", jsonArray);
-                        resultResp.success(configureDeviceObj.toString());
-
-                    }  else {
-                        resultResp.error("startSmartConfig", "Esptouch fail", null);
+                    } else {
+                        resultResp.error("startSmartConfig", "Esptouch cancelled", null);
                     }
-                } else {
-                    resultResp.error("startSmartConfig", "Esptouch cancelled", null);
-                } 
 
-              } catch (Exception err) {
-                  resultResp.error("startSmartConfig", err.getMessage(), null);
-              }
+                } catch (Exception err) {
+                    resultResp.error("startSmartConfig", err.getMessage(), null);
+                }
 
 
-          }
-      }).execute(apSsid, apBssid, apPassword, deviceCountData, broadcastData);      
-  }
-
-  private int getBatteryLevel() {
-    int batteryLevel = -1;
-    if (VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP) {
-      BatteryManager batteryManager = (BatteryManager) getSystemService(BATTERY_SERVICE);
-      batteryLevel = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
-    } else {
-      Intent intent = new ContextWrapper(getApplicationContext()).
-          registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
-      batteryLevel = (intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) * 100) /
-          intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+            }
+        }).execute(apSsid, apBssid, apPassword, deviceCountData, broadcastData);
     }
-  
-    return batteryLevel;
-  }
+
+    private int getBatteryLevel() {
+        int batteryLevel = -1;
+        if (VERSION.SDK_INT >= VERSION_CODES.LOLLIPOP) {
+            BatteryManager batteryManager = (BatteryManager) getSystemService(BATTERY_SERVICE);
+            batteryLevel = batteryManager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
+        } else {
+            Intent intent = new ContextWrapper(getApplicationContext()).
+                    registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+            batteryLevel = (intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) * 100) /
+                    intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+        }
+
+        return batteryLevel;
+    }
 
     public interface TaskListener {
         public void onFinished(List<IEsptouchResult> result);
@@ -230,7 +231,7 @@ public class MainActivity extends FlutterActivity {
 
         @Override
         protected void onPreExecute() {
-            
+
         }
 
         @Override
@@ -247,7 +248,7 @@ public class MainActivity extends FlutterActivity {
                 taskResultCount = deviceCountData.length == 0 ? -1 : Integer.parseInt(new String(deviceCountData));
 
                 mEsptouchTask = new EsptouchTask(apSsid, apBssid, apPassword,
-                         getApplicationContext());
+                        getApplicationContext());
                 mEsptouchTask.setPackageBroadcast(broadcastData[0] == 1); // true is broadcast, false is multicast
             }
 
@@ -268,7 +269,4 @@ public class MainActivity extends FlutterActivity {
             }
         }
     }
-
-
 }
-
